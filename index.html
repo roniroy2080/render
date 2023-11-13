@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <title>WEBRTC</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <!-- <link rel='stylesheet' type='text/css' media='screen' href='main.css'> -->
+    <!-- <script src='main.js'></script> -->
+</head>
+<body>
+    
+    <div class="contianer">
+        <video id="local_video" autoplay></video>
+        <video id="Remote_video" autoplay></video>
+    </div>
+
+    <button onclick="mute()">MUTE</button>
+    <button onclick="joining()">JOIN</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.2/socket.io.js"></script>
+<script>
+    let socket = io('http://localhost:6500');
+</script>
+<script>
+    const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]}
+    const peerConnection = new RTCPeerConnection(configuration);
+</script>
+
+<script>
+    let mute = () => {
+        document.getElementById('local_video').muted = 'true';
+    }
+</script>
+
+<script>
+    let creator;
+    let local_str,Remote_str;
+    let getOffer = async() =>{
+        let offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer)
+        return offer;
+    }
+
+    let getAnswer = async(offer) =>{
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
+        let ans = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(ans);
+        return ans;
+    }
+
+    let streaming = () =>{
+        navigator.getUserMedia =
+        navigator.getUserMedia ||
+        navigator.webkitGetUserMedia ||
+        navigator.mozGetUserMedia;
+
+        navigator.getUserMedia(
+            {
+                audio: true, video: { width: 300, height: 200 }
+            },
+            (stream)=>{
+                let local_video = document.getElementById('local_video');
+                local_video.srcObject = stream;
+                local_str = stream;
+                // stream.getTracks().forEach(track => {
+                //     peerConnection.addTrack(track,stream);
+                // })
+                stream_sharing();
+            },
+            error => console.log(error)
+        )
+
+    }
+
+    let stream_sharing = () =>{
+       
+       
+        local_str.getTracks().forEach(track => {
+            peerConnection.addTrack(track,local_str);
+        });
+       
+    }
+
+
+</script>
+
+<script>
+    let joining = async() => {
+        creator = true;
+        let offer = await getOffer();
+        console.log('offer created')
+        socket.emit('offer:server',offer);
+    }
+</script>
+
+<script>
+    socket.on('offer:client', async offer =>{
+        let answer = await getAnswer(offer);
+        console.log('answer created')
+        socket.emit('answer:server',answer);
+        streaming();
+        return socket.off('offer:client')
+    })
+
+    socket.on('answer:client',async answer =>{
+        console.log('answer set as remote des')
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        streaming();
+        return socket.off('answer:client')
+    })
+
+
+    peerConnection.onnegotiationneeded = async() =>{
+        console.log('negotitaion needed')
+        let offer = await getOffer();
+        socket.emit('nego:needed:server:offer',offer);
+    }
+
+    socket.on('nego:needed:client:offer',async offer => {
+        let answer = await getAnswer(offer);
+        console.log('nego answer')
+        socket.emit('nego:answer:need:server',answer)
+        return socket.off('nego:needed:client:offer')
+    })
+
+    socket.on('nego:answer:need:client',async answer =>{
+        console.log('a')
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        return socket.off('nego:answer:need:client');
+    })
+
+    peerConnection.ontrack = tr => {
+        console.log('tr')
+        console.log(tr)
+        let remote_video = document.getElementById('Remote_video')
+        remote_video.srcObject = tr.streams[0];
+    }
+
+</script>
+
+</body>
+</html>
