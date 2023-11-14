@@ -10,17 +10,21 @@
 </head>
 <body>
     
+    <h6>JOINED BY : <span id="user_joined_name" style="color: green;font-size: 0.75rem;"></span></h6>
+
     <div class="contianer">
         <video id="local_video" autoplay></video>
         <video id="Remote_video" autoplay></video>
     </div>
 
-    <button onclick="mute()">MUTE</button>
-    <button onclick="joining()">JOIN</button>
+    <input type="text" placeholder="Enter Name Here" id="name_inp">
+    <input type="text" placeholder="Enter Room ID" id="room_id">
+    <button id="mute_btn" onclick="mute()">MUTE</button>
+    <button onclick="init()">JOIN</button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.2/socket.io.js"></script>
 <script>
-    let socket = io('https://video-calling-0q2z.onrender.com');
+    let socket = io('http://localhost:6500');
 </script>
 <script>
     const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]}
@@ -28,8 +32,20 @@
 </script>
 
 <script>
+    let isMUTE = false;
+    let mute_btn = document.getElementById('mute_btn');
     let mute = () => {
-        document.getElementById('local_video').muted = 'true';
+        if(isMUTE)
+        {
+            document.getElementById('local_video').muted = 'false';
+            isMUTE = false;
+            mute_btn.innerHTML = 'MUTE';
+        }else
+        {
+            isMUTE = true;
+            document.getElementById('local_video').muted = 'true';
+            mute_btn.innerHTML = 'UNMUTE';
+        }
     }
 </script>
 
@@ -84,50 +100,110 @@
 
 
 </script>
+<script>
+    let name = document.getElementById('name_inp');
+    let roomID = document.getElementById('room_id');
+    let user_joined_name = document.getElementById('user_joined_name');
+</script>
+
+<script>
+    let init = () => {
+       if(roomID.value.length > 0 && name.value.length > 0)
+       {
+        socket.emit('joining:room',{
+            to:roomID.value,
+            name:name.value
+        });
+       }else
+       {
+        alert('Please Enter Room-ID And Name First')
+       }
+    }
+</script>
+
+<script>
+    socket.on('other:joined:room', name_getting =>{
+        user_joined_name.innerHTML = name_getting;
+        socket.emit('other:user:joined',{
+            name:name.value,
+            to:roomID.value
+        })
+    })
+
+    socket.on('other:user:joined:success', other_user_name =>{
+        user_joined_name.innerHTML = other_user_name;
+        joining();
+    })
+
+</script>
 
 <script>
     let joining = async() => {
         creator = true;
         let offer = await getOffer();
         console.log('offer created')
-        socket.emit('offer:server',offer);
+        socket.emit('offer:server',{
+            offer,
+            to:roomID.value
+        });
     }
 </script>
 
 <script>
     socket.on('offer:client', async offer =>{
-        let answer = await getAnswer(offer);
-        console.log('answer created')
-        socket.emit('answer:server',answer);
-        streaming();
-        return socket.off('offer:client')
+        if(!creator)
+        {
+            let answer = await getAnswer(offer);
+            console.log('answer created')
+            socket.emit('answer:server',{
+                answer,
+                to:roomID.value
+            });
+            streaming();
+            return socket.off('offer:client')
+        }
     })
 
     socket.on('answer:client',async answer =>{
-        console.log('answer set as remote des')
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        streaming();
-        return socket.off('answer:client')
+        if(creator)
+        {
+            console.log('answer set as remote description')
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            streaming();
+            return socket.off('answer:client')
+        }
     })
 
 
     peerConnection.onnegotiationneeded = async() =>{
-        console.log('negotitaion needed')
+       
         let offer = await getOffer();
-        socket.emit('nego:needed:server:offer',offer);
+        console.log('nego offer')
+        socket.emit('nego:needed:server:offer',{
+            offer,
+            to:roomID.value
+        });
+       
     }
 
     socket.on('nego:needed:client:offer',async offer => {
+    
         let answer = await getAnswer(offer);
         console.log('nego answer')
-        socket.emit('nego:answer:need:server',answer)
+        socket.emit('nego:answer:need:server',{
+            answer,
+            to:roomID.value
+        })
         return socket.off('nego:needed:client:offer')
+        
     })
 
     socket.on('nego:answer:need:client',async answer =>{
+      
         console.log('a')
         await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
         return socket.off('nego:answer:need:client');
+      
     })
 
     peerConnection.ontrack = tr => {
@@ -136,6 +212,8 @@
         let remote_video = document.getElementById('Remote_video')
         remote_video.srcObject = tr.streams[0];
     }
+
+    peerConnection.onconnectionstatechange = e => console.log(e)
 
 </script>
 
