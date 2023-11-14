@@ -13,8 +13,12 @@
     <h6>JOINED BY : <span id="user_joined_name" style="color: green;font-size: 0.75rem;"></span></h6>
 
     <div class="contianer">
-        <video id="local_video" autoplay></video>
-        <video id="Remote_video" autoplay></video>
+        <h4>USER VIDEO</h4>
+        <video style="height: 300px;width: 350px;" id="local_video" autoplay></video>
+
+
+        <h4>REMOTE VIDEO</h4>
+        <video style="height: 300px;width: 350px;" id="Remote_video" autoplay></video>
     </div>
 
     <input type="text" placeholder="Enter Name Here" id="name_inp">
@@ -24,7 +28,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.2/socket.io.js"></script>
 <script>
-     let socket = io('https://video-calling-0q2z.onrender.com');
+    let socket = io('https://video-calling-0q2z.onrender.com');
 </script>
 <script>
     const configuration = {'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]}
@@ -65,33 +69,51 @@
         return ans;
     }
 
-    let streaming = () =>{
-        navigator.getUserMedia =
-        navigator.getUserMedia ||
-        navigator.webkitGetUserMedia ||
-        navigator.mozGetUserMedia;
+    let streaming = async() =>{
+        // navigator.getUserMedia =
+        // navigator.getUserMedia ||
+        // navigator.webkitGetUserMedia ||
+        // navigator.mozGetUserMedia;
 
-        navigator.getUserMedia(
-            {
-                audio: true, video: { width: 300, height: 200 }
-            },
-            (stream)=>{
-                let local_video = document.getElementById('local_video');
-                local_video.srcObject = stream;
-                local_str = stream;
-                // stream.getTracks().forEach(track => {
-                //     peerConnection.addTrack(track,stream);
-                // })
-                stream_sharing();
-            },
-            error => console.log(error)
-        )
+        // navigator.getUserMedia(
+        //     {
+        //         audio: true, video: { width: 300, height: 200 }
+        //     },
+        //     (stream)=>{
+        //         let local_video = document.getElementById('local_video');
+        //         local_video.srcObject = stream;
+        //         local_str = stream;
+        //         // stream.getTracks().forEach(track => {
+        //         //     peerConnection.addTrack(track,stream);
+        //         // })
+        //         stream_sharing();
+        //     },
+        //     error => console.log(error)
+        // )
+
+        const constraints = window.constraints = {
+                audio: true,
+                video: true
+            };
+        try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        handleSuccess(stream);
+        } catch (e) {
+            handleError(e);
+        }
 
     }
 
-    let stream_sharing = () =>{
-       
-       
+    let handleError = (e) => console.log(e.message);
+
+    let handleSuccess = async (stream)=>{
+        let local_video = document.getElementById('local_video');
+        local_video.srcObject = stream;
+        local_str = stream;
+        stream_sharing();
+    }
+
+    let stream_sharing = () =>{       
         local_str.getTracks().forEach(track => {
             peerConnection.addTrack(track,local_str);
         });
@@ -141,7 +163,6 @@
     let joining = async() => {
         creator = true;
         let offer = await getOffer();
-        console.log('offer created')
         socket.emit('offer:server',{
             offer,
             to:roomID.value
