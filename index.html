@@ -12,6 +12,14 @@
     
     <h6>JOINED BY : <span id="user_joined_name" style="color: green;font-size: 0.75rem;"></span></h6>
 
+     <div>
+        <input type="text" id="msg_inp">
+        <button id="msg_btn">SEND MESSAGE</button>
+    </div>
+
+    <div id="msg_part" style="overflow-y: scroll;width: 90%;">
+    </div>
+    
     <div class="contianer">
         <h4>USER VIDEO</h4>
         <video style="height: 300px;width: 350px;" id="local_video" autoplay></video>
@@ -175,7 +183,6 @@
         if(!creator)
         {
             let answer = await getAnswer(offer);
-            console.log('answer created')
             socket.emit('answer:server',{
                 answer,
                 to:roomID.value
@@ -188,7 +195,6 @@
     socket.on('answer:client',async answer =>{
         if(creator)
         {
-            console.log('answer set as remote description')
             await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
             streaming();
             return socket.off('answer:client')
@@ -199,7 +205,6 @@
     peerConnection.onnegotiationneeded = async() =>{
        
         let offer = await getOffer();
-        console.log('nego offer')
         socket.emit('nego:needed:server:offer',{
             offer,
             to:roomID.value
@@ -210,7 +215,6 @@
     socket.on('nego:needed:client:offer',async offer => {
     
         let answer = await getAnswer(offer);
-        console.log('nego answer')
         socket.emit('nego:answer:need:server',{
             answer,
             to:roomID.value
@@ -236,6 +240,40 @@
 
     peerConnection.onconnectionstatechange = e => console.log(e)
 
+    let msg = document.getElementById('msg_inp');
+    let datachannel = peerConnection.createDataChannel('msg');
+    document.getElementById('msg_btn').onclick = () =>{
+        if(msg.value.length > 0)
+        {
+            if(datachannel.readyState == "open" && peerConnection.connectionState == "connected" && peerConnection.iceConnectionState == "connected")
+            {
+                try {
+                    datachannel.send(msg.value);
+                } catch (error) {
+                    console.log(error.message)
+                }
+
+            }else
+            {
+                alert('other User Does Not Connected');
+            }
+        }else
+        {
+            alert('Please type Some Message');
+        }
+    }
+
+    peerConnection.ondatachannel = e =>{
+        var data = e.channel;
+        data.onmessage = e => {
+            let msg_part = document.getElementById('msg_part');
+            let h4 = document.createElement('h6');
+            h4.innerHTML = `${e.data}`;
+            msg_part.append(h4)
+        };
+    }
+
+    
 </script>
 
 </body>
